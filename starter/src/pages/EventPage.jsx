@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Button,
@@ -8,14 +8,17 @@ import {
   Textarea,
   VStack,
   useToast,
-  AlertDialog,
-  AlertDialogOverlay,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogBody,
-  AlertDialogFooter,
 } from "@chakra-ui/react";
 import { useParams, useNavigate } from "react-router-dom";
+
+// categories lookup
+const CATEGORIES = {
+  1: "Music",
+  2: "Sports",
+  3: "Technology",
+  4: "Art",
+  5: "Food",
+};
 
 export const EventPage = () => {
   const { eventId } = useParams();
@@ -25,10 +28,7 @@ export const EventPage = () => {
   const toast = useToast();
   const navigate = useNavigate();
 
-  // For AlertDialog
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const cancelRef = useRef();
-
+  // Load event
   useEffect(() => {
     fetch(`http://localhost:3000/events/${eventId}`)
       .then((res) => res.json())
@@ -40,11 +40,10 @@ export const EventPage = () => {
           image: data.image,
           startTime: data.startTime,
           endTime: data.endTime,
-          categories: Array.isArray(data.categories)
-            ? data.categories.join(", ")
-            : data.categories || "",
+          categoryIds: data.categoryIds.join(", "),
         });
-      });
+      })
+      .catch(() => toast({ title: "Failed to load event", status: "error" }));
   }, [eventId]);
 
   const handleChange = (e) => {
@@ -59,7 +58,10 @@ export const EventPage = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          categories: form.categories.split(",").map((c) => c.trim()),
+          categoryIds: form.categoryIds
+            .toString()
+            .split(",")
+            .map((id) => Number(id.trim())),
         }),
       });
       toast({ title: "Event updated", status: "success" });
@@ -70,14 +72,16 @@ export const EventPage = () => {
   };
 
   const handleDelete = async () => {
-    try {
-      await fetch(`http://localhost:3000/events/${eventId}`, {
-        method: "DELETE",
-      });
-      toast({ title: "Event deleted", status: "success" });
-      navigate("/");
-    } catch {
-      toast({ title: "Delete failed", status: "error" });
+    if (window.confirm("Are you sure you want to delete this event?")) {
+      try {
+        await fetch(`http://localhost:3000/events/${eventId}`, {
+          method: "DELETE",
+        });
+        toast({ title: "Event deleted", status: "success" });
+        navigate("/");
+      } catch {
+        toast({ title: "Delete failed", status: "error" });
+      }
     }
   };
 
@@ -107,9 +111,8 @@ export const EventPage = () => {
             onChange={handleChange}
           />
           <Input
-            name="categories"
-            placeholder="Comma-separated categories"
-            value={form.categories}
+            name="categoryIds"
+            value={form.categoryIds}
             onChange={handleChange}
           />
           <Button colorScheme="blue" onClick={handleUpdate}>
@@ -124,76 +127,21 @@ export const EventPage = () => {
           <Heading>{event.title}</Heading>
           <Text>{event.description}</Text>
           <img src={event.image} alt={event.title} width="100%" />
-          <Text mt={2}>
+          <Text>
             {event.startTime} – {event.endTime}
           </Text>
-          <Text mt={2}>
+          <Text>
             Categories:{" "}
-            {Array.isArray(event.categories)
-              ? event.categories.join(", ")
-              : event.categories}
+            {event.categoryIds?.map((id) => CATEGORIES[id]).join(", ")}
           </Text>
-          {event.creator?.name && (
-            <>
-              <Text mt={2}>Created by: {event.creator.name}</Text>
-              {event.creator.image && (
-                <img
-                  src={event.creator.image}
-                  alt={event.creator.name}
-                  width="50"
-                />
-              )}
-            </>
-          )}
           <Button colorScheme="blue" mt={4} onClick={() => setEditMode(true)}>
             Edit
           </Button>
-          <Button
-            colorScheme="red"
-            mt={4}
-            ml={2}
-            onClick={() => setIsDialogOpen(true)}
-          >
+          <Button colorScheme="red" mt={4} ml={2} onClick={handleDelete}>
             Delete
           </Button>
         </>
       )}
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog
-        isOpen={isDialogOpen}
-        leastDestructiveRef={cancelRef}
-        onClose={() => setIsDialogOpen(false)}
-      >
-        <AlertDialogOverlay>
-          <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">
-              Delete Event
-            </AlertDialogHeader>
-
-            <AlertDialogBody>
-              Are you sure you want to delete this event? This action cannot be
-              undone.
-            </AlertDialogBody>
-
-            <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={() => setIsDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                colorScheme="red"
-                onClick={() => {
-                  setIsDialogOpen(false);
-                  handleDelete();
-                }}
-                ml={3}
-              >
-                Delete
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
     </Box>
   );
 };
